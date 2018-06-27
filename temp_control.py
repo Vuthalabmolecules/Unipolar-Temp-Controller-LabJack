@@ -12,16 +12,23 @@ ZEROV = 2.5 #Verify that this is actually the zeropoint
 GATE_VOLT_MIN = 1.5
 GATE_VOLT_MAX = 2.7
 enable = True
+enable2 = True
 
 logger_gate_voltage = ZEROV
 params_set_temp = ZEROV
 
 
 #Parameters
-SET = set_temp(31.0) #PUT YOUR TEMP HERE!  
-params_prop_gain = 5
+SET = set_temp(25.5) #PUT YOUR TEMP HERE!  
+SET2 = set_temp(25.5) #PUT YOUR TEMP HERE!  
+
+params_prop_gain = 2.5
 params_pi_pole = 0.5
 params_pd_pole = 1
+
+params_prop_gain2 = 2.5
+params_pi_pole2 = 0.5
+params_pd_pole2 = 1
 
 logger_accum = 0.0
 accum_small = 0.0
@@ -41,6 +48,11 @@ while (True):
     error_signal_prev = error_signal_instant
     error_signal_instant = ljm.eReadName(handle, "AIN0") - SET
     error_signal = (error_signal_instant * alpha_avg) + (error_signal * (1.0 - alpha_avg))
+
+    error_signal_prev2 = error_signal_instant2
+    error_signal_instant2 = ljm.eReadName(handle, "AIN0") - SET
+    error_signal2 = (error_signal_instant2 * alpha_avg) + (error_signal2 * (1.0 - alpha_avg))
+
 
     if (enable):
         accum_small += error_signal_instant * dt
@@ -69,4 +81,34 @@ while (True):
         logger_accum = 0.0
     
     ljm.eWriteName(handle, "DAC0", logger_gate_volt)
-    print "OUT: %10.4f                 INSTANT_ERROR: %10.4f                TEMPERATURE: %10.4f" % (round(logger_gate_volt, 4), round(error_signal_instant, 4), round(get_temp(), 4))
+
+
+
+    if (enable2):
+        accum_small2 += error_signal_instant * dt
+        n_accum2 += 1
+        if (n_accum2 > N_ACCUM):
+            n_accum2 = 0
+            logger_accum2 += accum_small2*params_prop_gain2*params_pi_pole2
+            accum_small2 = 0.0
+
+        prop_term = 0.99*prop_term2 + 0.01*(error_signal_instant2*params_prop_gain2)
+        der_term2 = (error_signal_instant2 - error_signal_prev2)/dt/params_pd_pole2
+        derivative_term2 = 0.995*derivative_term2 + 0.005*(der_term2*params_prop_gain2)
+
+        gv = logger_accum2 + prop_term2
+
+        if (gv > GATE_VOLT_MAX):
+            gv = GATE_VOLT_MAX
+            logger_accum2 = gv
+
+        if (gv < GATE_VOLT_MIN):
+            gv = GATE_VOLT_MIN
+            logger_accum2 = gv
+        logger_gate_volt2 = gv
+    else:
+        logger_gate_volt2 = GATE_VOLT_MIN
+        logger_accum2 = 0.0
+    
+    ljm.eWriteName(handle, "DAC0", logger_gate_volt2)
+    #print "OUT: %10.4f                 INSTANT_ERROR: %10.4f                TEMPERATURE: %10.4f" % (round(logger_gate_volt, 4), round(error_signal_instant, 4), round(get_temp(), 4))
